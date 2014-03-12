@@ -31,11 +31,17 @@ def load_dataset(dataset="train"):
 
 	return data
 
-def generate_play_set(d=load_data(), phn=0):
+def generate_play_set(d=load_dataset(), phn=0):
 	raw_data = []
 	one_hots = np.identity(NUM_SPEAKERS)
-	max_acoustic = -99999
-	min_acoustic = 99999
+
+	# I've pre-calculated these values
+	max_acoustic = 9899
+	min_acoustic = -6884
+
+	# maybe try normalizing later
+	# d['train_x_raw'] = (raws - (min_acoustic)) / (max_acoustic - (min_acoustic))
+
 	for i, row in enumerate(d['train_phn']):
 		# start by modelling just phoneme 'iy'
 		if row[2] == phn:
@@ -44,14 +50,15 @@ def generate_play_set(d=load_data(), phn=0):
 				spkr_id = d['train_spkr'][seq]
 				x_raw = d['train_x_raw'][seq][i:i+ACOUSTIC_SAMPLE_SIZE]
 
-				max_acoustic = max(np.max(x_raw), max_acoustic)
-				min_acoustic = min(np.min(x_raw), min_acoustic)
+				# max_acoustic = max(np.max(x_raw), max_acoustic)
+				# min_acoustic = min(np.min(x_raw), min_acoustic)
 
-				data = (one_hots[spkr_id,:], #one-hot vector for speaker ID
+				data = ((one_hots[spkr_id,:], #one-hot vector for speaker ID
 						d['spkrinfo'][spkr_id], # vector that describes speaker
-						x_raw, # raw sound data
+						x_raw), # raw sound data
 						d['train_x_raw'][seq][i+ACOUSTIC_SAMPLE_SIZE]) # label
 				raw_data.append(data)
+
 	return raw_data
 
 
