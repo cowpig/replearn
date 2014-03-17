@@ -11,8 +11,8 @@ n_train = 10000
 
 one_hots = np.array([line[0][0] for line in data[:n_train]])
 infos = np.array([line[0][1] for line in data[:n_train]])
-infos[0] /= np.max(infos[0])
-infos[15] /= np.max(infos[15])
+infos[0] /= np.max(infos[:, 0])
+infos[15] /= np.max(infos[:, 15])
 raws = np.array([line[0][2] for line in data[:n_train]], dtype=np.float64)
 raws = (raws - np.min(raws)) / (np.max(raws) - np.min(raws))
 
@@ -26,7 +26,7 @@ HIDDEN_UNITS = 500
 LEARNING_RATE = 0.1
 CORRUPTION = 0.3
 
-n_in = np.shape(input_matrix)[0]
+n_in = np.shape(input_matrix)[1]
 n_hidden = HIDDEN_UNITS
 
 # initialization of weights as suggested in theano tutorials
@@ -38,31 +38,38 @@ initialized_W = np.asarray(np.random.uniform(
 
 W = theano.shared(initialized_W, 'W')
 
-b_in = theano.shared(np.zeros(n_in), 'b_in')
-b_hidden = theano.shared(np.zeros(n_hidden), 'b_hidden')
+b_in = theano.shared(np.zeros(n_hidden), 'b_in')
+b_out = theano.shared(np.zeros(n_in), 'b_out')
 
 x = T.dmatrix('x')
 
 active_hidden = T.nnet.sigmoid(T.dot(x, W) + b_in)
-output = T.nnet.sigmoid(T.dot(active_hidden, W.T) + b_hidden)
+output = T.nnet.sigmoid(T.dot(active_hidden, W.T) + b_out)
 
 entropy = -T.sum(x * T.log(output) + (1 - x) * T.log(1 - output), axis=1)
+
+train_step = theano.function([i, batch_size], output, 
+	givens={x:inputs[i:i+batch_size]}, mode="DebugMode")
+
 cost = T.mean(entropy)
 
-parameters = [W, b_in, b_hidden]
+parameters = [W, b_in, b_out]
 gradients = T.grad(cost, parameters)
 
 updates = []
 for param, grad in zip(parameters, gradients):
     updates.append((param, param - LEARNING_RATE * grad))
 
-train_step = theano.function([x], cost, updates=updates)
+i, batch_size = T.lscalars('i', 'batch_size')
+train_step = theano.function([i, batch_size], cost, updates=updates, 
+								givens={x:inputs[i:i+batch_size]})#, mode="DebugMode")
 
-def epoch(batch_size):
+def epoch(batch_size_to_use):
     i=0
     costs = []
-    while i < n_train + batch_size:
-        costs.append(train_step(inputs[i:i+batch_size, :]))
+    while i < n_train + batch_size_to_use:
+    	print "i {}, batch_size {}, n_train {}".format(i, batch_size_to_use, n_train)
+        costs.append(train_step(i, batch_size_to_use))
 
     return costs
 
