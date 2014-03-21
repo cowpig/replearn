@@ -11,9 +11,9 @@ n_train = 10000
 
 one_hots = np.array([line[0][0] for line in data[:n_train]])
 infos = np.array([line[0][1] for line in data[:n_train]])
-infos[0] /= np.max(infos[:, 0])
-infos[15] /= np.max(infos[:, 15])
-raws = np.array([line[0][2] for line in data[:n_train]], dtype=np.float64)
+infos[:, 0] /= np.max(infos[:, 0])
+infos[:, 15] /= np.max(infos[:, 15])
+raws = np.array([line[0][2] for line in data[:n_train]], dtype=theano.config.floatX)
 raws = (raws - np.min(raws)) / (np.max(raws) - np.min(raws))
 
 input_matrix = np.concatenate((one_hots, infos, raws), axis=1)
@@ -34,7 +34,7 @@ initialized_W = np.asarray(np.random.uniform(
                                     low=-4 * np.sqrt(6. / (n_hidden + n_in)),
                                     high=4 * np.sqrt(6. / (n_hidden + n_in)),
                                     size=(n_in, n_hidden)), 
-                            dtype=np.float64)
+                            dtype=theano.config.floatX)
 
 W = theano.shared(initialized_W, 'W')
 
@@ -43,13 +43,12 @@ b_out = theano.shared(np.zeros(n_in), 'b_out')
 
 x = T.dmatrix('x')
 
+# TODO:
+# noise = T.randomstreams.RandomStreams.normal((5,5), avg=1, std=0.1)
 active_hidden = T.nnet.sigmoid(T.dot(x, W) + b_in)
 output = T.nnet.sigmoid(T.dot(active_hidden, W.T) + b_out)
 
 entropy = -T.sum(x * T.log(output) + (1 - x) * T.log(1 - output), axis=1)
-
-train_step = theano.function([i, batch_size], output, 
-	givens={x:inputs[i:i+batch_size]}, mode="DebugMode")
 
 cost = T.mean(entropy)
 
@@ -70,6 +69,7 @@ def epoch(batch_size_to_use):
     while i < n_train + batch_size_to_use:
     	print "i {}, batch_size {}, n_train {}".format(i, batch_size_to_use, n_train)
         costs.append(train_step(i, batch_size_to_use))
+        i += batch_size_to_use
 
     return costs
 
