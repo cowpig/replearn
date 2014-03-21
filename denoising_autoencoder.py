@@ -5,7 +5,7 @@ import loader
 from sklearn.preprocessing import scale
 
 class Autoencoder(object):
-    def __init__(self, input_tensor, n_in, n_hidden, learning_rate):
+    def __init__(self, input_tensor, n_in, n_hidden, learning_rate, pct_blackout=0.2):
         # initialization of weights as suggested in theano tutorials
         initialized_W = np.asarray(np.random.uniform(
                                             low=-4 * np.sqrt(6. / (n_hidden + n_in)),
@@ -21,9 +21,11 @@ class Autoencoder(object):
         self.inputs = input_tensor
 
         self.x = T.dmatrix('x')
-        # TODO:
-        # noise = T.randomstreams.RandomStreams.normal((5,5), avg=1, std=0.1)
-        self.active_hidden = T.nnet.sigmoid(T.dot(self.x, self.W) + self.b_in)
+        self.noise = T.shared_randomstreams.RandomStreams(1234).binomial(
+                            (self.x.shape), n=1, p=1-(pct_blackout), 
+                            dtype=theano.config.floatX)
+        self.noisy = self.noise * self.x
+        self.active_hidden = T.nnet.sigmoid(T.dot(self.noisy, self.W) + self.b_in)
         self.output = T.nnet.sigmoid(T.dot(self.active_hidden, self.W.T) + self.b_out)
 
         self.entropy = -T.sum(self.x * T.log(self.output) + 
@@ -49,7 +51,7 @@ if __name__ == "__main__":
     data = loader.generate_play_set()
     np.random.shuffle(data)
 
-    n_train = 10000
+    n_train = 100000
 
     one_hots = np.array([line[0][0] for line in data[:n_train]])
     infos = np.array([line[0][1] for line in data[:n_train]])
