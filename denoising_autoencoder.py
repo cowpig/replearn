@@ -4,76 +4,83 @@ import theano.tensor as T
 import loader
 from sklearn.preprocessing import scale
 
-data = loader.generate_play_set()
-np.random.shuffle(data)
+class Autoencoder(object):
+    def __init__(self, input_tensor, n_in, n_hidden, learning_rate):
+        # initialization of weights as suggested in theano tutorials
+        initialized_W = np.asarray(np.random.uniform(
+                                            low=-4 * np.sqrt(6. / (n_hidden + n_in)),
+                                            high=4 * np.sqrt(6. / (n_hidden + n_in)),
+                                            size=(n_in, n_hidden)), 
+                                    dtype=theano.config.floatX)
 
-n_train = 10000
+        self.W = theano.shared(initialized_W, 'W')
 
-one_hots = np.array([line[0][0] for line in data[:n_train]])
-infos = np.array([line[0][1] for line in data[:n_train]])
-infos[:, 0] /= np.max(infos[:, 0])
-infos[:, 15] /= np.max(infos[:, 15])
-raws = np.array([line[0][2] for line in data[:n_train]], dtype=theano.config.floatX)
-raws = (raws - np.min(raws)) / (np.max(raws) - np.min(raws))
+        self.b_in = theano.shared(np.zeros(n_hidden), 'b_in')
+        self.b_out = theano.shared(np.zeros(n_in), 'b_out')
 
-input_matrix = np.concatenate((one_hots, infos, raws), axis=1)
-inputs = theano.shared(input_matrix)
+        self.inputs = input_tensor
 
-##############
-# autoencoder
+        self.x = T.dmatrix('x')
+        # TODO:
+        # noise = T.randomstreams.RandomStreams.normal((5,5), avg=1, std=0.1)
+        self.active_hidden = T.nnet.sigmoid(T.dot(self.x, self.W) + self.b_in)
+        self.output = T.nnet.sigmoid(T.dot(self.active_hidden, self.W.T) + self.b_out)
 
-HIDDEN_UNITS = 500
-LEARNING_RATE = 0.1
-CORRUPTION = 0.3
+        self.entropy = -T.sum(self.x * T.log(self.output) + 
+                                (1 - self.x) * T.log(1 - self.output), axis=1)
 
-n_in = np.shape(input_matrix)[1]
-n_hidden = HIDDEN_UNITS
+        self.cost = T.mean(self.entropy)
 
-# initialization of weights as suggested in theano tutorials
-initialized_W = np.asarray(np.random.uniform(
-                                    low=-4 * np.sqrt(6. / (n_hidden + n_in)),
-                                    high=4 * np.sqrt(6. / (n_hidden + n_in)),
-                                    size=(n_in, n_hidden)), 
-                            dtype=theano.config.floatX)
+        self.parameters = [self.W, self.b_in, self.b_out]
+        self.gradients = T.grad(self.cost, self.parameters)
 
-W = theano.shared(initialized_W, 'W')
+        self.updates = []
+        for param, grad in zip(self.parameters, self.gradients):
+            self.updates.append((param, param - LEARNING_RATE * grad))
 
-b_in = theano.shared(np.zeros(n_hidden), 'b_in')
-b_out = theano.shared(np.zeros(n_in), 'b_out')
+        i, batch_size = T.lscalars('i', 'batch_size')
+        self.train_step = theano.function([i, batch_size], self.cost, 
+                                            updates=self.updates, 
+                                            givens={self.x:self.inputs[i:i+batch_size]})
+                                            #, mode="DebugMode")
 
-x = T.dmatrix('x')
 
-# TODO:
-# noise = T.randomstreams.RandomStreams.normal((5,5), avg=1, std=0.1)
-active_hidden = T.nnet.sigmoid(T.dot(x, W) + b_in)
-output = T.nnet.sigmoid(T.dot(active_hidden, W.T) + b_out)
+if __name__ == "__main__":
+    data = loader.generate_play_set()
+    np.random.shuffle(data)
 
-entropy = -T.sum(x * T.log(output) + (1 - x) * T.log(1 - output), axis=1)
+    n_train = 10000
 
-cost = T.mean(entropy)
+    one_hots = np.array([line[0][0] for line in data[:n_train]])
+    infos = np.array([line[0][1] for line in data[:n_train]])
+    infos[:, 0] /= np.max(infos[:, 0])
+    infos[:, 15] /= np.max(infos[:, 15])
+    raws = np.array([line[0][2] for line in data[:n_train]], dtype=theano.config.floatX)
+    raws = (raws - np.min(raws)) / (np.max(raws) - np.min(raws))
 
-parameters = [W, b_in, b_out]
-gradients = T.grad(cost, parameters)
+    input_matrix = np.concatenate((one_hots, infos, raws), axis=1)
+    inputs = theano.shared(input_matrix)
 
-updates = []
-for param, grad in zip(parameters, gradients):
-    updates.append((param, param - LEARNING_RATE * grad))
+    HIDDEN_UNITS = 500
+    LEARNING_RATE = 0.1
 
-i, batch_size = T.lscalars('i', 'batch_size')
-train_step = theano.function([i, batch_size], cost, updates=updates, 
-								givens={x:inputs[i:i+batch_size]})#, mode="DebugMode")
+    aa = Autoencoder(inputs, np.shape(input_matrix)[1], HIDDEN_UNITS, LEARNING_RATE)
+    train_step = aa.train_step
 
-def epoch(batch_size_to_use):
-    i=0
-    costs = []
-    while i < n_train + batch_size_to_use:
-    	print "i {}, batch_size {}, n_train {}".format(i, batch_size_to_use, n_train)
-        costs.append(train_step(i, batch_size_to_use))
-        i += batch_size_to_use
+    def epoch(batch_size_to_use):
+        i=0
+        costs = []
+        while i + batch_size_to_use < n_train:
+            # print "i {}, batch_size {}, n_train {}".format(i, batch_size_to_use, n_train)
+            costs.append(train_step(i, batch_size_to_use))
+            i += batch_size_to_use
 
-    return costs
+        return costs
 
-while True:
-    cost = epoch(1000)
-    print "costs: {}".format(cost)
-    print "avg: {}".format(np.mean(cost))
+    n = 0
+    while True:
+        n += 1
+        cost = epoch(1000)
+        print "=== epoch {} ===".format(n)
+        print "costs: {}".format([line[()] for line in cost])
+        print "avg: {}".format(np.mean(cost))
