@@ -38,7 +38,7 @@ class Autoencoder(object):
 
         self.updates = []
         for param, grad in zip(self.parameters, self.gradients):
-            self.updates.append((param, param - LEARNING_RATE * grad))
+            self.updates.append((param, param - learning_rate * grad))
 
         i, batch_size = T.lscalars('i', 'batch_size')
         self.train_step = theano.function([i, batch_size], self.cost, 
@@ -46,6 +46,15 @@ class Autoencoder(object):
                                             givens={self.x:self.inputs[i:i+batch_size]})
                                             #, mode="DebugMode")
 
+def epoch(batch_size_to_use, n_train, theano_function):
+    i=0
+    costs = []
+    while i + batch_size_to_use < n_train:
+        # print "i {}, batch_size {}, n_train {}".format(i, batch_size_to_use, n_train)
+        costs.append(theano_function(i, batch_size_to_use))
+        i += batch_size_to_use
+
+    return costs
 
 if __name__ == "__main__":
     data = loader.generate_play_set()
@@ -69,20 +78,10 @@ if __name__ == "__main__":
     aa = Autoencoder(inputs, np.shape(input_matrix)[1], HIDDEN_UNITS, LEARNING_RATE)
     train_step = aa.train_step
 
-    def epoch(batch_size_to_use):
-        i=0
-        costs = []
-        while i + batch_size_to_use < n_train:
-            # print "i {}, batch_size {}, n_train {}".format(i, batch_size_to_use, n_train)
-            costs.append(train_step(i, batch_size_to_use))
-            i += batch_size_to_use
-
-        return costs
-
     n = 0
     while True:
         n += 1
-        cost = epoch(1000)
+        cost = epoch(1000, n_train, train_step)
         print "=== epoch {} ===".format(n)
         print "costs: {}".format([line[()] for line in cost])
         print "avg: {}".format(np.mean(cost))
