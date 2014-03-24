@@ -44,12 +44,13 @@ if __name__ == "__main__":
     input_matrix = np.concatenate((one_hots, infos, raws), axis=1)
     inputs = theano.shared(input_matrix)
 
-    label_array = np.mat([line[1] for line in data[:n_train]], dtype=theano.config.floatX).transpose()
-    labels = theano.shared(label_array)
+    label_mat = np.mat([line[1] for line in data[:n_train]], dtype=theano.config.floatX).transpose()
+    label_mat = (label_mat - np.min(label_mat)) / (np.max(label_mat) - np.min(label_mat))
+    labels = theano.shared(label_mat)
 
 
     # network
-    LEARNING_RATE = 0.1
+    LEARNING_RATE = 0.01
 
     x = T.dmatrix('x')
     y = T.dmatrix('y')
