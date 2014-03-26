@@ -28,12 +28,13 @@ def load_dataset(dataset="train"):
 				data[f[:f.find(".")]] = np.load(DATA_PATH + f)
 
 	data['spkrinfo'] = data['spkrinfo'].tolist().toarray()
+	data['spkr_onehot'] = np.identity(NUM_SPEAKERS)
 
 	return data
 
 def generate_play_set(d=load_dataset(), phn=0):
 	raw_data = []
-	one_hots = np.identity(NUM_SPEAKERS)
+	one_hots = data['spkr_onehot']
 
 	# I've pre-calculated these values
 	max_acoustic = 9899
@@ -60,6 +61,26 @@ def generate_play_set(d=load_dataset(), phn=0):
 				raw_data.append(data)
 
 	return raw_data
+
+class DatasetManager(object):
+	def __init__(self, data):
+		self.data = data
+		self.max_raw = max([max(row) for row in data['train_x_raw']])
+		self.min_raw = min([min(row) for row in data['train_x_raw']])
+
+		# TODO: figure out how turn self.raws into a shared variable
+
+		# one for each audio sequence (4120 in trainset)
+		self.raws = [theano.shared(samples) for samples in data['train_x_raw']]
+		self.spkr_idx = theano.shared(data['train_spkr']) # [spkr_idx]
+
+		# one for each speaker (630)
+		self.spkr_onehot = theano.shared(data['spkr_onehot'])
+		self.spkr_info = theano.shared(data['spkrinfo']) # bool except cols 0, 15
+
+		# one for each phoneme (158084 in trainset)
+		self.phn_to_seq = theano.shared(d['train_phn_to_seq']) # [seq idx]
+		self.phn_idx = theano.shared(d['train_phn']) # [start, end, phn_idx]
 
 
 
