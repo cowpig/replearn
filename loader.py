@@ -34,7 +34,7 @@ def load_dataset(dataset="train"):
 
 def generate_play_set(d=load_dataset(), phn=0):
 	raw_data = []
-	one_hots = data['spkr_onehot']
+	one_hots = d['spkr_onehot']
 
 	# I've pre-calculated these values
 	max_acoustic = 9899
@@ -82,6 +82,8 @@ class DatasetManager(object):
 		self.phn_to_seq = theano.shared(d['train_phn_to_seq']) # [seq idx]
 		self.phn_idx = theano.shared(d['train_phn']) # [start, end, phn_idx]
 
+	def get_dataset(self, n):
+		pass	
 
 
 # def generate_play_set(d=load_dataset(), phn=0):
